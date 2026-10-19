@@ -1,145 +1,149 @@
-# Telegram-бот с памятью: диалог + RAG по документам
+**English** · [Deutsch](README.de.md) · [Русский](README.ru.md)
 
-Бот ведёт связный диалог (кратковременная память) и отвечает по загруженным PDF, DOCX и TXT
-(долговременная память на основе RAG и ChromaDB). Данные каждого пользователя изолированы.
+# Telegram Bot with Memory: Conversation + RAG over Documents
 
-## Возможности
+The bot keeps a coherent conversation (short-term memory) and answers questions about uploaded PDF, DOCX and TXT files
+(long-term memory based on RAG and ChromaDB). Each user's data is isolated.
 
-- Диалог с учётом истории: последние реплики + краткое резюме старой части разговора.
-- Загрузка PDF, DOCX, TXT → извлечение текста → чанки с перекрытием → эмбеддинги OpenAI → ChromaDB.
-- Ответы по документам только на основе найденных фрагментов, с блоком «Источники в документах».
-- Управление документами: список, выбор активного, удаление с подтверждением.
-- После перезапуска сохраняются документы и индекс (кратковременная память очищается).
+The bot's interface is in Russian; the messages below are translated for readability.
 
-## Установка
+## Features
 
-Нужен Python 3.11 или новее.
+- Conversation that takes history into account: the latest messages + a short summary of the older part of the conversation.
+- Upload PDF, DOCX, TXT → text extraction → overlapping chunks → OpenAI embeddings → ChromaDB.
+- Answers about documents are based only on the retrieved fragments, with a "Sources in documents" block.
+- Document management: list, choose the active document, delete with confirmation.
+- Documents and the index survive a restart (short-term memory is cleared).
+
+## Installation
+
+Python 3.11 or newer is required.
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate      # для macOS/Linux
-.venv\Scripts\activate         # для Windows PowerShell
+source .venv/bin/activate      # macOS/Linux
+.venv\Scripts\activate         # Windows PowerShell
 pip install -r requirements.txt
-cp .env.example .env           # в Windows PowerShell: Copy-Item .env.example .env
+cp .env.example .env           # in Windows PowerShell: Copy-Item .env.example .env
 ```
 
-## Настройка .env
+## Configuring .env
 
-Откройте `.env` и заполните два обязательных значения:
+Open `.env` and fill in the two required values:
 
-| Переменная | Что это |
+| Variable | What it is |
 |---|---|
-| `BOT_TOKEN` | токен бота от [@BotFather](https://t.me/BotFather) |
-| `OPENAI_API_KEY` | ключ с [platform.openai.com](https://platform.openai.com/api-keys) |
+| `BOT_TOKEN` | bot token from [@BotFather](https://t.me/BotFather) |
+| `OPENAI_API_KEY` | key from [platform.openai.com](https://platform.openai.com/api-keys) |
 
-Остальные переменные имеют разумные значения по умолчанию:
+The other variables have sensible defaults:
 
-| Переменная | По умолчанию | Назначение |
+| Variable | Default | Purpose |
 |---|---|---|
-| `CHAT_MODEL` | `gpt-5-mini` | модель для ответов и резюме |
-| `EMBED_MODEL` | `text-embedding-3-small` | модель эмбеддингов |
-| `CHROMA_PATH` | `./data/chroma` | папка ChromaDB |
-| `UPLOADS_PATH` | `./data/uploads` | папка с оригиналами файлов (`{user_id}/`) |
-| `SHORT_MEMORY_MESSAGES` | `10` | сколько последних реплик передаётся модели |
-| `SHORT_MEMORY_SUMMARY_AFTER` | `20` | после скольких реплик история сворачивается в резюме (`0` — выключить) |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `500` / `75` | размер чанка и перекрытие, символы |
-| `RAG_TOP_K` | `5` | сколько фрагментов передавать модели |
-| `MAX_DOCUMENT_SIZE_MB` | `20` | максимальный размер файла |
-| `RAG_MAX_DISTANCE` | `0.7` | порог релевантности (косинусное расстояние; меньше — строже) |
-| `MAX_ANSWER_TOKENS` | `4000` | лимит токенов ответа (у reasoning-моделей включает «размышления») |
-| `LOG_LEVEL` | `INFO` | уровень логирования |
+| `CHAT_MODEL` | `gpt-5-mini` | model for answers and summaries |
+| `EMBED_MODEL` | `text-embedding-3-small` | embedding model |
+| `CHROMA_PATH` | `./data/chroma` | ChromaDB folder |
+| `UPLOADS_PATH` | `./data/uploads` | folder with the original files (`{user_id}/`) |
+| `SHORT_MEMORY_MESSAGES` | `10` | how many recent messages are sent to the model |
+| `SHORT_MEMORY_SUMMARY_AFTER` | `20` | after how many messages the history is collapsed into a summary (`0` — disabled) |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `500` / `75` | chunk size and overlap, in characters |
+| `RAG_TOP_K` | `5` | how many fragments are passed to the model |
+| `MAX_DOCUMENT_SIZE_MB` | `20` | maximum file size |
+| `RAG_MAX_DISTANCE` | `0.7` | relevance threshold (cosine distance; lower is stricter) |
+| `MAX_ANSWER_TOKENS` | `4000` | answer token limit (for reasoning models it includes the "thinking") |
+| `LOG_LEVEL` | `INFO` | logging level |
 
-Пути в `.env` считаются от папки проекта. Файл `.env` в git не попадает.
+Paths in `.env` are relative to the project folder. The `.env` file is not committed to git.
 
-## Запуск
+## Running
 
 ```bash
 python bot.py
 ```
 
-В логе появится строка «Бот запущен: @имя_бота». Остановка — Ctrl+C.
-Бот работает только в личных чатах.
+The log shows the line "Бот запущен: @bot_name" (bot started). Stop it with Ctrl+C.
+The bot works only in private chats.
 
-## Тесты
+## Tests
 
 ```bash
 pytest
 ```
 
-## Команды бота
+## Bot commands
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `/start` | приветствие и краткая справка |
-| `/help` | все команды и объяснение памяти |
-| `/documents` | список документов: номер, файл, дата, число чанков, короткий id |
-| `/use_document 2` | искать только в документе №2 |
-| `/all_documents` | снова искать по всем документам |
-| `/delete_document 2` | удалить документ №2 (с подтверждением кнопками «Удалить» / «Отмена») |
-| `/clear_chat` | очистить историю диалога и её резюме (документы остаются) |
+| `/start` | greeting and a short help |
+| `/help` | all commands and an explanation of the memory |
+| `/documents` | list of documents: number, file, date, number of chunks, short id |
+| `/use_document 2` | search only in document #2 |
+| `/all_documents` | search all documents again |
+| `/delete_document 2` | delete document #2 (with "Delete" / "Cancel" confirmation buttons) |
+| `/clear_chat` | clear the conversation history and its summary (documents stay) |
 
-### Пример сессии
-
-```
-Вы:   /start
-Вы:   [отправляете company.pdf]
-Бот:  Файл получен. Извлекаю текст и создаю индекс…
-Бот:  Готово: company.pdf добавлен в долгосрочную память. Создано чанков: 24. Теперь можно задавать вопросы.
-Вы:   Вы занимаетесь веб-разработкой?
-Бот:  Да, ... 
-      Источники в документах: company.pdf, фрагменты 2 и 4
-Вы:   А сколько это занимает?      ← «это» понятно из истории диалога
-Бот:  Не нашёл подтверждения этому в загруженных документах.
-Вы:   /clear_chat
-Бот:  История текущего диалога очищена
-```
-
-## Как это устроено
+### Sample session
 
 ```
-bot.py                     Telegram-обработчики (aiogram), запуск, логирование
-config.py                  чтение и проверка .env
+You:  /start
+You:  [send company.pdf]
+Bot:  File received. Extracting text and building the index…
+Bot:  Done: company.pdf has been added to long-term memory. Chunks created: 24. You can ask questions now.
+You:  Do you do web development?
+Bot:  Yes, ...
+      Sources in documents: company.pdf, fragments 2 and 4
+You:  And how long does it take?   ← "it" is clear from the conversation history
+Bot:  I couldn't find confirmation of this in the uploaded documents.
+You:  /clear_chat
+Bot:  The current conversation history has been cleared
+```
+
+## How it works
+
+```
+bot.py                     Telegram handlers (aiogram), startup, logging
+config.py                  reading and validating .env
 services/
-  document_loader.py       безопасное имя файла, извлечение текста (TXT/PDF/DOCX)
-  chunker.py               chunk_text(): чанки по абзацам/предложениям с overlap
-  embeddings.py            эмбеддинги OpenAI батчами
-  vector_store.py          ChromaDB: коллекция long_memory, косинусное сходство
-  registry.py              SQLite data/app.db: таблицы documents и user_settings
-  documents.py             конвейер «файл → индекс» и удаление документа
-  short_memory.py          история и резюме по user_id (deque в оперативной памяти)
-  rag.py                   retrieve_context(), сборка prompt, вызов модели, резюмирование
+  document_loader.py       safe file name, text extraction (TXT/PDF/DOCX)
+  chunker.py               chunk_text(): chunks by paragraphs/sentences with overlap
+  embeddings.py            OpenAI embeddings in batches
+  vector_store.py          ChromaDB: long_memory collection, cosine similarity
+  registry.py              SQLite data/app.db: documents and user_settings tables
+  documents.py             "file → index" pipeline and document deletion
+  short_memory.py          history and summary per user_id (in-memory deque)
+  rag.py                   retrieve_context(), prompt assembly, model call, summarization
 tests/                     pytest
-data/uploads/{user_id}/    оригиналы файлов
-data/chroma/               векторная база
-data/app.db                реестр документов
+data/uploads/{user_id}/    original files
+data/chroma/               vector database
+data/app.db                document registry
 ```
 
-### Кратковременная память
+### Short-term memory
 
-- История хранится в `deque` отдельно для каждого `user_id`; реплика пользователя и ответ ассистента — по одной реплике.
-- В модель уходят последние `SHORT_MEMORY_MESSAGES` реплик.
-- Чтобы резюмирование могло сработать (порог 20 больше окна в 10), `deque` вмещает `max(SHORT_MEMORY_MESSAGES, SHORT_MEMORY_SUMMARY_AFTER + 2)` реплик; при переполнении самая старая вытесняется (FIFO).
-- Когда реплик стало больше `SHORT_MEMORY_SUMMARY_AFTER`, модель делает резюме (факты, цели, решения; без секретов), а в истории остаются последние 6 реплик. Резюме добавляется в системный prompt. Если резюмирование не удалось, история остаётся как есть, а попытка повторится позже.
+- The history is stored in a `deque` per `user_id`; the user's message and the assistant's answer count as one message each.
+- The latest `SHORT_MEMORY_MESSAGES` messages are sent to the model.
+- So that summarization can kick in (the threshold of 20 is larger than the window of 10), the `deque` holds `max(SHORT_MEMORY_MESSAGES, SHORT_MEMORY_SUMMARY_AFTER + 2)` messages; on overflow the oldest one is evicted (FIFO).
+- When there are more than `SHORT_MEMORY_SUMMARY_AFTER` messages, the model writes a summary (facts, goals, decisions; no secrets) and the last 6 messages stay in the history. The summary is added to the system prompt. If summarization fails, the history stays as it is and the attempt is repeated later.
 
-### Долговременная память и изоляция данных
+### Long-term memory and data isolation
 
-- Все чанки лежат в одной коллекции `long_memory`, но **каждый поиск, подсчёт и удаление** содержит фильтр `user_id` (см. `_where()` в `services/vector_store.py`); при выборе документа добавляется `doc_id`.
-- Реестр документов и удаление тоже проверяют `user_id`, поэтому чужой документ нельзя ни найти, ни удалить, даже подставив его `doc_id`.
-- Поиск отсекает результаты дальше порога `RAG_MAX_DISTANCE` и удаляет почти одинаковые чанки. Если ничего релевантного нет, модель получает пометку об этом и отвечает «Не нашёл подтверждения этому в загруженных документах.».
-- Короткий уточняющий вопрос («А сколько это занимает?») ищется вместе с предыдущим вопросом пользователя.
-- `/use_document` ограничивает поиск выбранным документом строго: если в нём ничего не найдено, бот не подставляет другие документы. Выбор хранится в SQLite и переживает перезапуск; сбрасывается `/all_documents` или удалением документа.
+- All chunks are stored in one `long_memory` collection, but **every search, count and deletion** includes a `user_id` filter (see `_where()` in `services/vector_store.py`); when a document is selected, `doc_id` is added.
+- The document registry and deletion also check `user_id`, so another user's document can neither be found nor deleted, even by substituting its `doc_id`.
+- The search drops results beyond the `RAG_MAX_DISTANCE` threshold and removes near-duplicate chunks. If nothing relevant is found, the model is told so and answers "I couldn't find confirmation of this in the uploaded documents."
+- A short follow-up question ("And how long does it take?") is searched together with the user's previous question.
+- `/use_document` strictly limits the search to the selected document: if nothing is found there, the bot does not fall back to other documents. The selection is stored in SQLite and survives a restart; it is reset by `/all_documents` or by deleting the document.
 
-## Безопасность и приватность
+## Security and privacy
 
-- Имя файла очищается от путей и спецсимволов; файл сохраняется как `data/uploads/{user_id}/{doc_id}_{имя}`.
-- Проверяются расширение и размер файла; никакие пользовательские данные не передаются в shell.
-- Пользователь видит только понятные сообщения; трейсбеки и детали ошибок пишутся в лог.
-- В логах нет содержимого документов и текстов сообщений; токен бота и ключ OpenAI маскируются (`***`).
-- Тексты ваших документов и вопросов отправляются в OpenAI, учитывайте это при загрузке конфиденциальных данных.
+- The file name is stripped of paths and special characters; the file is saved as `data/uploads/{user_id}/{doc_id}_{name}`.
+- File extension and size are checked; no user data is ever passed to a shell.
+- The user sees only clear messages; tracebacks and error details go to the log.
+- The logs contain no document contents or message texts; the bot token and the OpenAI key are masked (`***`).
+- The texts of your documents and questions are sent to OpenAI — keep this in mind when uploading confidential data.
 
-## Частые проблемы
+## Common problems
 
-- **«Не задана переменная окружения BOT_TOKEN/OPENAI_API_KEY»** — заполните `.env`, значения-заглушки из `.env.example` не подходят.
-- **PDF без текста** — это скан; бот не делает OCR, загрузите PDF с текстовым слоем.
-- **Смена `EMBED_MODEL` после индексации** — у моделей разная размерность векторов, старые документы перестанут искаться. Удалите их командой `/delete_document` (или очистите папку `data/chroma` вместе с `data/app.db`) и загрузите заново.
-- **Модель отвечает слишком долго** — `gpt-5-mini` рассуждает перед ответом; для скорости укажите в `CHAT_MODEL` менее «думающую» модель.
+- **"Не задана переменная окружения BOT_TOKEN/OPENAI_API_KEY"** (environment variable not set) — fill in `.env`; the placeholder values from `.env.example` will not work.
+- **PDF without text** — it is a scan; the bot does not do OCR, upload a PDF with a text layer.
+- **Changing `EMBED_MODEL` after indexing** — models have different vector dimensions, so old documents will no longer be found. Delete them with `/delete_document` (or clear the `data/chroma` folder together with `data/app.db`) and upload them again.
+- **The model answers too slowly** — `gpt-5-mini` reasons before answering; for speed, set a less "thinking" model in `CHAT_MODEL`.
